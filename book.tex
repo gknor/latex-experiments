@@ -1,0 +1,291 @@
+% A sample book made with the memoir class.
+% Compile with: latexmk -pdf -outdir=build book.tex
+\documentclass[a4paper,11pt,openright]{memoir}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{graphicx} % the veelo chapter style needs \resizebox
+\usepackage{tikz}     % for the gorilla picture in gorilla.tex
+\usepackage{lipsum} % filler text for the sample
+\usepackage[hidelinks]{hyperref}
+
+% memoir numbers only chapters and sections by default.
+% These two lines also number subsections, and show the levels down to
+% subsubsection in the contents (the protocols are on the subsubsection level).
+\setsecnumdepth{subsection}
+\settocdepth{subsubsection}
+
+% --- \topic: a heading that looks like \subsection, with its own counter ---
+%
+% Commands to change the number, used before \topic:
+%   \skiptopic          jump one number (\skiptopic[2] jumps two numbers)
+%   \topicnumber{10}    the next topic gets the number 10, then 11, 12
+%   \topicnumber*{10b}  the next topic gets the text "10b", the count does not change
+\newcounter{topic}                                    % one counter for the full book
+\newcounter{topicid}                                  % hidden counter, never changed by hand
+\makeatletter
+\let\topic@pending\@empty                             % free text for the next topic
+\let\topic@override\@empty                            % free text for the current topic
+% number format: 1, 2, 3, or the free text
+\renewcommand{\thetopic}{\ifx\topic@override\@empty\arabic{topic}\else\topic@override\fi}
+\newcommand{\skiptopic}[1][1]{\addtocounter{topic}{#1}}
+\newcommand{\topicnumber}{\@ifstar\topic@settext\topic@setnumber}
+\newcommand{\topic@setnumber}[1]{\setcounter{topic}{\numexpr(#1)-1\relax}}
+\newcommand{\topic@settext}[1]{\gdef\topic@pending{#1}}
+% \topic* has no number, so it does not use the free text
+\newcommand{\topic}{%
+  \stepcounter{topicid}%
+  \@ifstar{\topic@heading*}{\topic@usetext\topic@heading}}
+\newcommand{\topic@usetext}{%
+  \global\let\topic@override\topic@pending
+  \global\let\topic@pending\@empty
+  % a numbered topic with free text must not use a number from the count
+  \ifx\topic@override\@empty\else
+    \ifnum\c@secnumdepth>1 \addtocounter{topic}{-1}\fi
+  \fi}
+\newcommand{\topic@heading}{%
+  \subsechook\@startsection{topic}{2}{\subsecindent}%
+  {\beforesubsecskip}{\aftersubsecskip}{\normalfont\subsecheadstyle}}
+\newcommand{\topicmark}[1]{}                          % no entry in the page header
+\newcommand{\topicname}{Experiment}                   % the word before the number
+% In the text: put \topicname before the number of a topic only.
+\renewcommand{\@seccntformat}[1]{%
+  \@ifundefined{#1@cntformat}{\csname the#1\endcsname\quad}{\csname #1@cntformat\endcsname}}
+\newcommand{\topic@cntformat}{\topicname~\thetopic\quad}
+% In the contents: use the subsection format, with the word before the number.
+% The number box has space for the word, a number of two digits, and a small gap.
+\newcommand{\l@topic}[2]{{%
+  \settowidth{\cftsubsectionnumwidth}{\cftsubsectionfont\topicname~00\hspace{0.6em}}%
+  \renewcommand{\cftsubsectionpresnum}{\topicname~}%
+  % if the number is wider than the box (free text), make the box wider
+  \renewcommand{\numberline}[1]{%
+    \settowidth{\@tempdimb}{\@cftbsnum ##1\@cftasnum\hspace{0.6em}}%
+    \ifdim\@tempdimb<\@tempdima \@tempdimb=\@tempdima \fi
+    \hb@xt@\@tempdimb{\@cftbsnum ##1\@cftasnum\hfil}\@cftasnumb}%
+  \l@subsection{#1}{#2}}}
+\newcommand{\toclevel@topic}{2}                       % same level in PDF bookmarks
+\renewcommand{\theHtopic}{\arabic{topicid}}           % unique link targets, also with equal numbers
+\makeatother
+
+% --- \protocol and \protocolsummary: headings on the subsubsection level ---
+%
+% The two commands use one counter. The title is optional:
+%   \protocol                    gives "PROTOCOL 1"
+%   \protocolsummary[The Title]  gives "PROTOCOL SUMMARY 2 The Title"
+% Commands to change the number, used before one of the two commands:
+%   \skipprotocol          jump one number (\skipprotocol[2] jumps two numbers)
+%   \protocolnumber{10}    the next heading gets the number 10, then 11, 12
+%   \protocolnumber*{10a}  the next heading gets the text "10a", the count does not change
+\newcounter{protocol}                                 % one counter for the two commands
+\newcounter{protocolid}                               % hidden counter, never changed by hand
+\makeatletter
+\newcommand{\protocolname}{PROTOCOL}
+\newcommand{\protocolsummaryname}{PROTOCOL SUMMARY}
+\let\protocol@pending\@empty                          % free text for the next heading
+\let\protocol@override\@empty                         % free text for the current heading
+\renewcommand{\theprotocol}{\ifx\protocol@override\@empty\arabic{protocol}\else\protocol@override\fi}
+\renewcommand{\theHprotocol}{\arabic{protocolid}}     % unique link targets
+\newcommand{\skipprotocol}[1][1]{\addtocounter{protocol}{#1}}
+\newcommand{\protocolnumber}{\@ifstar\protocol@settext\protocol@setnumber}
+\newcommand{\protocol@setnumber}[1]{\setcounter{protocol}{\numexpr(#1)-1\relax}}
+\newcommand{\protocol@settext}[1]{\gdef\protocol@pending{#1}}
+\newcommand{\protocol}[1][]{\protocol@heading{\protocolname}{#1}}
+\newcommand{\protocolsummary}[1][]{\protocol@heading{\protocolsummaryname}{#1}}
+% The word, the number, and the title are one text with normal spaces.
+% There is no number box, thus there is no extra space after the number.
+\newcommand{\protocol@text}[2]{#1~\theprotocol\if\relax\detokenize{#2}\relax\else\space #2\fi}
+% The heading is a subsubsection without a number of its own (star form).
+\newcommand{\protocol@heading}[2]{%
+  \subsubsechook
+  \@startsection{subsubsection}{3}{\subsubsecindent}%
+    {\beforesubsubsecskip}{\aftersubsubsecskip}{\normalfont\subsubsecheadstyle}*%
+    {\protocol@setup{#1}{#2}\protocol@text{#1}{#2}}}
+% This code runs in the line of the heading: it sets the number, makes the
+% target for \label and for links, and writes the line for the contents.
+\newcommand{\protocol@setup}[2]{%
+  \stepcounter{protocolid}%
+  \global\let\protocol@override\protocol@pending
+  \global\let\protocol@pending\@empty
+  % a heading with free text must not use a number from the count
+  \ifx\protocol@override\@empty\else\addtocounter{protocol}{-1}\fi
+  \refstepcounter{protocol}%
+  % the heading is in a group, thus make the data for \label global
+  \global\let\@currentlabel\@currentlabel
+  \global\let\@currentHref\@currentHref
+  \addcontentsline{toc}{subsubsection}{\protocol@text{#1}{#2}}}
+\makeatother
+
+\chapterstyle{veelo}
+\pagestyle{ruled}
+
+\title{A Sample Book}
+\author{Author Name}
+\date{\today}
+
+\begin{document}
+
+\frontmatter
+\maketitle
+\clearpage
+\tableofcontents
+
+\mainmatter
+
+\part{Foundations}
+
+\chapter{First Steps}
+\label{ch:first-steps}
+This chapter shows the basic structure of a book. \lipsum[1]
+
+\section{A Section}
+\label{sec:a-section}
+A section divides a chapter. \lipsum[2]
+
+\subsection{A Subsection}
+A subsection divides a section. \lipsum[3]
+
+\subsection{A Second Subsection}
+Text can contain a formula:
+\begin{equation}
+  \label{eq:euler}
+  e^{i\pi} + 1 = 0
+\end{equation}
+Equation~\eqref{eq:euler} is in Section~\ref{sec:a-section}.
+
+\topic{A First Topic}
+\label{top:first}
+A topic looks like a subsection, but it has its own counter. \lipsum[3]
+
+\topic{A Second Topic}
+Topic~\ref{top:first} is the topic before this one.
+
+\section{A Second Section}
+\lipsum[4]
+
+\chapter{More Structure}
+\label{ch:more-structure}
+Chapter~\ref{ch:first-steps} starts on page~\pageref{ch:first-steps}. \lipsum[5]
+
+\section{Lists}
+\begin{itemize}
+  \item A part contains chapters.
+  \item A chapter contains sections.
+  \item A section contains subsections.
+\end{itemize}
+
+\subsection{A Table}
+Table~\ref{tab:levels} shows the levels of the book.
+
+\begin{table}[ht]
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    Level & Command & Numbered \\
+    \midrule
+    Part       & \verb|\part|       & I, II \\
+    Chapter    & \verb|\chapter|    & 1, 2 \\
+    Section    & \verb|\section|    & 1.1 \\
+    Subsection & \verb|\subsection| & 1.1.1 \\
+    \bottomrule
+  \end{tabular}
+  \caption{The levels of the book structure.}
+  \label{tab:levels}
+\end{table}
+
+\subsection{A Picture}
+Figure~\ref{fig:gorilla} shows a gorilla. The picture is made with TikZ shapes.
+
+\begin{figure}[ht]
+  \centering
+  \newcommand{\gorillascale}{0.8}
+  \input{gorilla}
+  \caption{A gorilla made with TikZ.}
+  \label{fig:gorilla}
+\end{figure}
+
+\skiptopic
+\topic{A Topic in Chapter Two}
+The counter of the topics does not start again in a new chapter.
+The command \verb|\skiptopic| before this topic jumps the number 3.
+
+\part{Practice}
+
+\chapter{A Longer Example}
+\lipsum[6-7]
+
+\section{Method}
+\lipsum[8]
+
+\subsection{Setup}
+\lipsum[9]
+
+\subsection{Results}
+\lipsum[10]
+
+\topic{A Topic in Part Two}
+This topic is in the second part of the book. Its number continues from the first part.
+
+\protocol
+\label{pro:first}
+A protocol without a title. \lipsum[2][1-2]
+
+\protocolsummary
+A protocol summary without a title. It uses the same counter as the protocols.
+
+\protocol[Preparation of the Samples]
+\label{pro:samples}
+A protocol with a title. There is a normal space between the number and the title.
+
+\protocolsummary[Results of the Preparation]
+A protocol summary with a title.
+
+\protocolnumber{10}
+\protocol[A Protocol with a Set Number]
+The command \verb|\protocolnumber{10}| sets the number of this protocol.
+
+\protocolnumber*{10a}
+\protocolsummary[A Summary with Free Text]
+\label{pro:free}
+The command \verb|\protocolnumber*{10a}| sets free text as the number.
+
+\skipprotocol
+\protocol
+\label{pro:last}
+The command \verb|\skipprotocol| jumps the number 11.
+The labels give the numbers \ref{pro:first}, \ref{pro:samples}, \ref{pro:free}, and~\ref{pro:last}.
+
+\section{Discussion}
+\lipsum[11]
+
+\chapter{Conclusion}
+\lipsum[12]
+
+\section{Summary}
+\lipsum[13]
+
+\topicnumber{10}
+\topic{A Topic with a Set Number}
+\label{top:set}
+The command \verb|\topicnumber{10}| sets the number of this topic.
+
+\topicnumber*{10b}
+\topic{A Topic with Free Text}
+\label{top:free}
+The command \verb|\topicnumber*{10b}| sets free text as the number.
+The count does not change.
+
+\topic{A Topic after the Changes}
+\label{top:after}
+The count continues. The three topics have the numbers
+\ref{top:set}, \ref{top:free}, and~\ref{top:after}.
+
+\subsection{Next Steps}
+Change the text, add a chapter, and compile the book again.
+
+\backmatter
+
+\chapter{Afterword}
+The back matter has chapters without numbers. \lipsum[14]
+
+\end{document}

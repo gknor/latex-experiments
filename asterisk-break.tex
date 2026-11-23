@@ -1,0 +1,167 @@
+% Answer to https://tex.stackexchange.com/questions/752241
+% A separator between two fragments of text, with the same distances in each context.
+% Compile with: latexmk -pdf -outdir=build asterisk-break.tex
+\documentclass[11pt,twoside]{memoir}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathabx}
+\usepackage{lipsum}
+\usepackage{graphicx}
+\usepackage{etoolbox}
+
+\setstocksize{115mm}{120mm}
+\settrimmedsize{115mm}{120mm}{*}
+\settypeblocksize{95mm}{100mm}{*}
+\setlrmargins{10mm}{*}{*}
+\setulmargins{10mm}{*}{*}
+\setheadfoot{0pt}{0pt}
+\settypeoutlayoutunit{mm}
+\checkandfixthelayout
+
+\raggedbottom
+
+\makeatletter
+\newenvironment{myquotation}{%
+    \list{}{%
+        {\setlength\leftmargin{\the\leftmargin} \setlength\rightmargin{0mm}}
+        \listparindent=\parindent \parsep=0cm
+    }
+    \item\relax\slshape
+}{%
+    \endlist
+}
+
+% ---------------------------------------------------------------------------
+% \myfancybreak{<sign>}
+%
+% The distances are from baseline to baseline, in units of \baselineskip.
+\newcommand*{\fbabove}{2.25}  % last line of the text before -> sign
+\newcommand*{\fbbelow}{1.75}  % sign -> first line of the text after
+\newcommand*{\fbflex}{0.25}   % stretch and shrink, as a part of the distance
+\newcommand*{\fbdepth}{\vphantom{p}} % invisible: the depth of the sign line
+
+\newskip\fb@skip
+\gdef\fb@lastbelow{0pt}       % the glue that the last break put below the sign
+
+\newcommand{\myfancybreak}[1]{%
+  \par
+  \begingroup
+    % The glue below the sign. The next paragraph adds \parskip, thus subtract it.
+    \fb@skip=\dimexpr\fbbelow\baselineskip-\baselineskip-\parskip\relax
+      plus  \fbflex\dimexpr\fbbelow\baselineskip\relax
+      minus \fbflex\dimexpr\fbbelow\baselineskip\relax
+    \xdef\fb@lastbelow{\the\fb@skip}%
+    \ifnum\lastpenalty=\fb@floatmark\relax
+      % Directly after a float placed "here". The float already added
+      % \intextsep, the same space that a text paragraph gets. Add nothing.
+      % The float also added -\parskip for the next paragraph. Cancel it,
+      % because the line of the sign has no \parskip.
+      \vskip\parskip
+    \else
+      % Replace the space that a list, a quotation, etc. added below itself.
+      % The result is then the same after each type of text.
+      \ifdim\lastskip=\z@\else \vskip-\lastskip \fi
+      \fb@skip=\dimexpr\fbabove\baselineskip-\baselineskip\relax
+        plus  \fbflex\dimexpr\fbabove\baselineskip\relax
+        minus \fbflex\dimexpr\fbabove\baselineskip\relax
+      \vskip\fb@skip           % plain glue: TeX discards it at the top of a page
+    \fi
+    % The sign is a normal centered line of text without \parskip. TeX puts
+    % it on the baseline grid, as it does for each line of a paragraph.
+    % \fbdepth gives the line the depth of a text line with a descender,
+    % thus the distance to a float below is the same as for normal text.
+    \parskip\z@skip \parindent\z@ \centering
+    \noindent #1\fbdepth\par
+    \nobreak
+  \endgroup
+  \vskip\fb@lastbelow\relax
+  % A mark after the glue. It hides the glue from \addvspace (a list start
+  % would replace the glue), and the float code can find the break.
+  \penalty\fb@breakmark\relax
+  % Behave as a heading: no page break between the sign and the next text,
+  % and a list or a quotation that follows adds no space above itself.
+  \@afterindenttrue           % use \@afterindentfalse for no indent after the sign
+  \@afterheading
+}
+
+% Two changes in the LaTeX code that puts a float "here" (\@addtocurcol).
+%
+% 1. Before the float. The float adds \intextsep above itself with \vskip, thus
+%    this space would add to the space below the sign. If the mark of
+%    \myfancybreak is the last item, cancel the glue below the sign first.
+\newcommand*{\fb@beforefloat}{%
+  \ifnum\lastpenalty=\fb@breakmark\relax
+    \fb@skip=\fb@lastbelow\relax \vskip-\fb@skip
+  \fi}
+\patchcmd{\@addtocurcol}
+  {\@cons \@midlist \@currbox}
+  {\@cons \@midlist \@currbox \fb@beforefloat}
+  {}{\ClassWarning{asterisk-break}{Cannot patch \string\@addtocurcol\space (1)}}
+% 2. After the float. If LaTeX put the float "here", put a mark after it, thus
+%    \myfancybreak can see that a float is directly before it.
+%
+% The marks are penalties. TeX reads each value of 10000 or more as "no break",
+% but \lastpenalty gives the exact value. A page break after a float is still
+% possible at the penalty that LaTeX puts directly after the float box.
+\newcommand*{\fb@floatmark}{10001}
+\newcommand*{\fb@breakmark}{10002}
+\newif\iffb@here
+\patchcmd{\@addtocurcol}
+  {\outputpenalty \z@ \@inserttrue}
+  {\global\fb@heretrue \outputpenalty \z@ \@inserttrue}
+  {}{\ClassWarning{asterisk-break}{Cannot patch \string\@addtocurcol\space (2)}}
+\pretocmd{\end@float}{\global\fb@herefalse}
+  {}{\ClassWarning{asterisk-break}{Cannot patch \string\end@float\space (1)}}
+\apptocmd{\end@float}{\ifvmode\iffb@here \penalty\fb@floatmark\relax \fi\fi}
+  {}{\ClassWarning{asterisk-break}{Cannot patch \string\end@float\space (2)}}
+\makeatother
+% ---------------------------------------------------------------------------
+
+\begin{document}
+\pagestyle{empty}
+\section{Break between plain text paragraphs}
+\lipsum[1][1-3]
+\myfancybreak{$\ast$Aa}
+\lipsum[1][1-3]\newpage
+
+\section{Break between quotations}
+\begin{myquotation}
+    Some own-defined or standard quotation.
+\end{myquotation}
+\myfancybreak{$\ast$Aa}
+\begin{myquotation}
+    Some own-defined or standard quotation.
+\end{myquotation}\newpage
+
+\section{Break between lists}
+\begin{itemize}
+    \item The last item of a list.
+\end{itemize}
+\myfancybreak{$\ast$Aa}
+\begin{itemize}
+    \item The first item of a list.
+\end{itemize}\newpage
+
+\section{Plain text paragraphs and a float}
+\lipsum[1][1-3]
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=2cm]{example-image-a}
+    \caption{Some picture description}
+\end{figure}
+
+\lipsum[1][1-3]
+\newpage
+
+\section{Breaks and a float}
+\lipsum[1][1]
+\myfancybreak{$\ast$Aa}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=2cm]{example-image-a}
+    \caption{Some picture description}
+\end{figure}
+\myfancybreak{$\ast$Aa}
+\lipsum[1][1]
+\end{document}
